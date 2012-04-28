@@ -79,6 +79,7 @@ void elf_x86_usage(void)
 		"    --ramdisk=FILE        Use FILE as the kernel's initial ramdisk.\n"
 		"    --args-linux          Pass linux kernel style options\n"
 		"    --args-elf            Pass elf boot notes\n"
+		"    --relocs=FILE         Use FILE as the kernel reloc table (32bit only)\n"
 		);
 	
 	
@@ -92,7 +93,7 @@ int elf_x86_load(int argc, char **argv, const char *buf, off_t len,
 	const char *append = NULL;
 	int command_line_len;
 	int modified_cmdline_len;
-	const char *ramdisk;
+	const char *ramdisk, *relocs;
 	unsigned long entry, max_addr;
 	int arg_style;
 #define ARG_STYLE_ELF   0
@@ -108,6 +109,7 @@ int elf_x86_load(int argc, char **argv, const char *buf, off_t len,
 		{ "reuse-cmdline",	0, NULL, OPT_REUSE_CMDLINE },
 		{ "initrd",		1, NULL, OPT_RAMDISK },
 		{ "ramdisk",		1, NULL, OPT_RAMDISK },
+//		{ "relocs",		1, NULL, OPT_RELOCATE }, // do relocations of the 32bit code
 		{ "args-elf",		0, NULL, OPT_ARGS_ELF },
 		{ "args-linux",		0, NULL, OPT_ARGS_LINUX },
 		{ "args-none",		0, NULL, OPT_ARGS_NONE },
@@ -142,6 +144,9 @@ int elf_x86_load(int argc, char **argv, const char *buf, off_t len,
 		case OPT_RAMDISK:
 			ramdisk = optarg;
 			break;
+//		case OPT_RELOCATE:
+//			relocs = optarg;
+//			break;
 		case OPT_ARGS_ELF: 
 			arg_style = ARG_STYLE_ELF;
 			break;
@@ -176,20 +181,25 @@ int elf_x86_load(int argc, char **argv, const char *buf, off_t len,
 		}
 		modified_cmdline_len = strlen(modified_cmdline);
 	}
+	printf("elf_x86_load elf_exec_build_load\n");
 
 	/* Load the ELF executable */
 	elf_exec_build_load(info, &ehdr, buf, len, 0);
 
 	entry = ehdr.e_entry;
 	max_addr = elf_max_addr(&ehdr);
+	printf("elf_x86_load entry 0x%08x max_addr 0x%08x\n", entry, max_addr);
 
 	/* Do we want arguments? */
 	if (arg_style != ARG_STYLE_NONE) {
+		printf("elf_x86_load !ARG_STYLE_NONE\n");
 		/* Load the setup code */
 		elf_rel_build_load(info, &info->rhdr, purgatory, purgatory_size,
 			0, ULONG_MAX, 1, 0);
 	}
+	
 	if (arg_style == ARG_STYLE_NONE) {
+		printf("elf_x86_load ARG_STYLE_NONE\n");
 		info->entry = (void *)entry;
 
 	}
@@ -198,6 +208,7 @@ int elf_x86_load(int argc, char **argv, const char *buf, off_t len,
 		struct entry32_regs regs;
 		uint32_t arg1, arg2;
 
+		printf("elf_x86_load ARG_STYLE_ELF\n");
 		/* Setup the ELF boot notes */
 		note_base = elf_boot_notes(info, max_addr,
 					   command_line, command_line_len);
@@ -226,6 +237,7 @@ int elf_x86_load(int argc, char **argv, const char *buf, off_t len,
 		struct entry32_regs regs;
 		int rc = 0;
 
+		printf("elf_x86_load ARG_STYLE_LINUX\n");
 		/* Get the linux parameter header */
 		hdr = xmalloc(sizeof(*hdr));
 
@@ -283,6 +295,7 @@ int elf_x86_load(int argc, char **argv, const char *buf, off_t len,
 		elf_rel_set_symbol(&info->rhdr, "entry32_regs", &regs, sizeof(regs));
 	}
 	else {
+		printf("elf_x86_load ELSE\n");
 		die("Unknown argument style\n");
 	}
 

@@ -100,9 +100,15 @@ int valid_memory_range(struct kexec_info *info,
 {
 	int i;
 	if (sstart > send) {
+		printf("valid_memory_range ERROR sstart(0x%08lx) > send(0x%08lx)\n",
+		       sstart, send);
 		return 0;
 	}
-	if ((send > mem_max) || (sstart < mem_min)) {
+//	printf("valid_memory_range sstart(0x%08lx) < send(0x%08lx)\n", sstart, send);
+//	printf("valid_memory_range min(0x%llx) < max(0x%llx)\n", mem_min, mem_max);
+	if ((send > mem_max) || (sstart < mem_min)) {	  
+		printf("(send(0x%lx) > mem_max(0x%llx)) || (sstart(0x%lx) < mem_min(0x%llx))\n",
+		       send, mem_max, sstart, mem_min);
 		return 0;
 	}
 	for (i = 0; i < info->memory_ranges; i++) {
@@ -119,8 +125,13 @@ int valid_memory_range(struct kexec_info *info,
 
 		/* Check to see if we are fully contained */
 		if ((mstart <= sstart) && (mend >= send)) {
+			printf("(mstart(0x%08x) <= sstart(0x%08x)) && (mend(0x%08x) >= send(0x%08x)) TRUE\n",
+				mstart, sstart, mend, send);
 			return 1;
 		}
+		printf("(mstart(0x%08x) <= sstart(0x%08x)) && (mend(0x%08x) >= send(0x%08x)) FALSE\n",
+		       mstart, sstart, mend, send);
+
 	}
 	return 0;
 }
@@ -129,7 +140,7 @@ static int valid_memory_segment(struct kexec_info *info,
 				struct kexec_segment *segment)
 {
 	unsigned long sstart, send;
-	sstart = (unsigned long)segment->mem;
+	sstart = (unsigned long)(void*)(segment->mem);
 	send   = sstart + segment->memsz - 1;
 
 	return valid_memory_range(info, sstart, send);
@@ -143,11 +154,11 @@ void print_segments(FILE *f, struct kexec_info *info)
 	for (i = 0; i < info->nr_segments; i++) {
 		fprintf(f, "segment[%d].buf   = %p\n",	i,
 			info->segment[i].buf);
-		fprintf(f, "segment[%d].bufsz = %zx\n", i,
+		fprintf(f, "segment[%d].bufsz = %d\n", i,
 			info->segment[i].bufsz);
 		fprintf(f, "segment[%d].mem   = %p\n",	i,
 			info->segment[i].mem);
-		fprintf(f, "segment[%d].memsz = %zx\n", i,
+		fprintf(f, "segment[%d].memsz = %d\n", i,
 			info->segment[i].memsz);
 	}
 }
@@ -327,11 +338,11 @@ void add_segment_phys_virt(struct kexec_info *info,
 		base = virt_to_phys(base);
 
 	last = base + memsz -1;
-	if (!valid_memory_range(info, base, last)) {
+/*	if (!valid_memory_range(info, base, last)) {
 		die("Invalid memory segment %p - %p\n",
 			(void *)base, (void *)last);
 	}
-
+*/
 	size = (info->nr_segments + 1) * sizeof(info->segment[0]);
 	info->segment = xrealloc(info->segment, size);
 	info->segment[info->nr_segments].buf   = buf;
@@ -667,9 +678,9 @@ static int my_load(const char *type, int fileind, int argc, char **argv,
 	kernel = argv[fileind];
 	/* slurp in the input kernel */
 	kernel_buf = slurp_decompress_file(kernel, &kernel_size);
-#if 0
-	fprintf(stderr, "kernel: %p kernel_size: %lx\n", 
-		kernel_buf, kernel_size);
+#if 1
+	fprintf(stderr, "kernel_image buffer: 0x%p kernel_image size: 0x%x (%d)\n", 
+		kernel_buf, kernel_size, kernel_size);
 #endif
 
 	if (get_memory_ranges(&info.memory_range, &info.memory_ranges,
@@ -716,23 +727,30 @@ static int my_load(const char *type, int fileind, int argc, char **argv,
 		return -1;
 	}
 	info.kexec_flags |= native_arch;
+	printf("my_load: native_arch: %d i: %d (%s)\n", native_arch, i, file_type[i].name);
 
+	// TODO rewrite relocation as a generic parameter
+	// NOTE now relocation is handled at the beginning of the crashkernel area
 	if (file_type[i].load(argc, argv, kernel_buf,
 			      kernel_size, &info) < 0) {
 		fprintf(stderr, "Cannot load %s\n", kernel);
 		return -1;
 	}
+	printf("my_load: file_type[%d].load (%d, \"%s\", %p, %d, %p)\n",
+	       i, argc, argv, kernel_buf, kernel_size, &info);
+	
 	/* If we are not in native mode setup an appropriate trampoline */
-	if (arch_compat_trampoline(&info) < 0) {
+/*	if (arch_compat_trampoline(&info) < 0) {
 		return -1;
 	}
 	if (info.kexec_flags & KEXEC_PRESERVE_CONTEXT) {
 		add_backup_segments(&info, mem_min, mem_max - mem_min + 1);
 	}
-	/* Verify all of the segments load to a valid location in memory */
+*/	/* Verify all of the segments load to a valid location in memory */
 	for (i = 0; i < info.nr_segments; i++) {
-		if (!valid_memory_segment(&info, info.segment +i)) {
-			fprintf(stderr, "Invalid memory segment %p - %p\n",
+		if (!valid_memory_segment(&info, &(info.segment[i]))) {
+			fprintf(stderr, "my_load: Invalid memory segment [%d] %p - %p\n",
+				i,
 				info.segment[i].mem,
 				((char *)info.segment[i].mem) + 
 				info.segment[i].memsz);
@@ -744,24 +762,27 @@ static int my_load(const char *type, int fileind, int argc, char **argv,
 		return -1;
 	}
 	/* if purgatory is loaded update it */
-	update_purgatory(&info);
+//	update_purgatory(&info);
 	if (entry)
 		info.entry = entry;
-#if 0
+#if 1
 	fprintf(stderr, "kexec_load: entry = %p flags = %lx\n", 
 		info.entry, info.kexec_flags);
 	print_segments(stderr, &info);
 #endif
+
+// LOAD KERNEL in KERNEL
 	result = kexec_load(
 		info.entry, info.nr_segments, info.segment, info.kexec_flags);
 	if (result != 0) {
-		/* The load failed, print some debugging information */
+		// The load failed, print some debugging information 
 		fprintf(stderr, "kexec_load failed: %s\n", 
 			strerror(errno));
 		fprintf(stderr, "entry       = %p flags = %lx\n", 
 			info.entry, info.kexec_flags);
 		print_segments(stderr, &info);
 	}
+
 	return result;
 }
 
@@ -816,6 +837,13 @@ static int my_exec(void)
 	fprintf(stderr, "kexec failed: %s\n", 
 		strerror(errno));
 	return -1;
+}
+
+static int my_boot(int cpuid)
+{
+	kexec_boot(cpuid);
+	fprintf(stderr, "kexec boot done\n");
+	return 0;
 }
 
 static int kexec_loaded(void);
@@ -1038,6 +1066,8 @@ int main(int argc, char *argv[])
 {
 	int do_load = 1;
 	int do_exec = 0;
+	int do_boot = 0;
+	int cpuid = 0;
 	int do_load_jump_back_helper = 0;
 	int do_shutdown = 1;
 	int do_sync = 1;
@@ -1130,6 +1160,21 @@ int main(int argc, char *argv[])
 			do_sync = 0;
 			kexec_flags = KEXEC_ON_CRASH;
 			break;
+		case OPT_BOOT:
+			do_load = 0;
+			do_exec = 0;
+			do_shutdown = 0;
+			do_sync = 0;
+			do_boot = 1;
+			cpuid = strtoul(optarg, &endptr, 0);
+			if (*endptr) {
+				fprintf(stderr,
+					"Bad option value in --boot=%s\n",
+					optarg);
+				usage();
+				return 1;
+			}
+			break;
 		case OPT_MEM_MIN:
 			mem_min = strtoul(optarg, &endptr, 0);
 			if (*endptr) {
@@ -1178,6 +1223,7 @@ int main(int argc, char *argv[])
 	optind = 1;
 
 	result = arch_process_options(argc, argv);
+	printf("result = %d\n", result);
 
 	/* Check for bogus options */
 	if (!do_load) {
@@ -1219,6 +1265,12 @@ int main(int argc, char *argv[])
 	}
 	if ((result == 0) && do_load_jump_back_helper) {
 		result = my_load_jump_back_helper(kexec_flags, entry);
+	}
+	// mklinux support
+	//if ((result == 0) && do_boot) {
+	if (do_boot) {
+		printf("kexec do_boot on cpuid %d\n", cpuid);
+		result = my_boot(cpuid);
 	}
 
 	fflush(stdout);

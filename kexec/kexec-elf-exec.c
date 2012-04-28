@@ -52,7 +52,7 @@ int build_elf_exec_info(const char *buf, off_t len, struct mem_ehdr *ehdr,
 int elf_exec_load(struct mem_ehdr *ehdr, struct kexec_info *info)
 {
 	unsigned long base;
-	int result;
+	int result, l;
 	size_t i;
 
 	if (!ehdr->e_phdr) {
@@ -111,12 +111,35 @@ int elf_exec_load(struct mem_ehdr *ehdr, struct kexec_info *info)
 		}
 
 	}
-
+	
+//	char *relocs = "/root/git/mklinux/arch/x86/boot/compressed/vmlinux.relocs";
+	char *relocs = "/boot/vmlinux.relocs";
+	char *relocs_buf;
+	off_t relocs_size;
+	long *relocs_array;
+	long __page_offset = 0xc0000000;
+	int relocs_num = 0;
+	int relocs_offset = 0x2000000; // TODO rework here base on mem_min
+	
+	if (relocs_offset) {
+	  relocs_buf = slurp_file (relocs, &relocs_size);
+	  relocs_num = relocs_size / sizeof(long); relocs_num--;
+	  relocs_array = ((long*) relocs_buf) +1;
+	  printf("relocs buffer %p size %ld num %d (__page_offset 0x%08lx)\n", 
+		 relocs_buf, relocs_size, relocs_num, __page_offset);
+	  printf("relocs buffer 0x%lx 0x%lx - 0x%lx 0x%lx\n", 
+		 relocs_array[0], relocs_array[1], relocs_array[(relocs_num -2)], relocs_array[(relocs_num -1)]);
+	}
+	
 	/* Read in the PT_LOAD segments */
+	printf("elf_exec_load: segments are %d\n", ehdr->e_phnum);
 	for(i = 0; i < ehdr->e_phnum; i++) {
 		struct mem_phdr *phdr;
 		size_t size;
 		phdr = &ehdr->e_phdr[i];
+		printf("elf_exec_load: segment %d p_type %d p_filesz %lld p_data %p p_paddr 0x%08llx p_memsz 0x%08llx\n",
+		       i, phdr->p_type, phdr->p_filesz, phdr->p_data, phdr->p_paddr, phdr->p_memsz);
+		
 		if (phdr->p_type != PT_LOAD) {
 			continue;
 		}
@@ -124,6 +147,26 @@ int elf_exec_load(struct mem_ehdr *ehdr, struct kexec_info *info)
 		if (size > phdr->p_memsz) {
 			size = phdr->p_memsz;
 		}
+		
+		if (mem_min) // TODO rework on that considering relocation, crashkernel, etc.
+		  if (!base) // TODO rework
+		    base = mem_min - phdr->p_paddr; // TODO rework
+
+		if (relocs_offset) {
+			int stats=0;
+			//for every entry in the relocation array if does fit in the area apply the relocation
+			for (l=0; l<relocs_num; l++) {
+				long relocs_location = (relocs_array[l]-__page_offset);
+				if ( (phdr->p_paddr <= relocs_location) 
+				  && ((relocs_location < (phdr->p_paddr + phdr->p_memsz))) ) {
+					long * addr = (long *) ((long)phdr->p_data + (relocs_location-(long)(phdr->p_paddr)));
+					*addr += relocs_offset;
+					stats++;
+				}
+			}
+			printf("relocs: replaced %d absolute addresses\n", stats);
+		}
+		  
 		add_segment(info,
 			phdr->p_data, size,
 			phdr->p_paddr + base, phdr->p_memsz);

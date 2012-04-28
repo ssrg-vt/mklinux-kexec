@@ -480,13 +480,15 @@ int get_memory_ranges(struct memory_range **range, int *ranges,
 	}
 
 	/* just set 0 to 1 to enable printing for debugging */
-#if 0
+#if 1
 	{
-		int i;
+		int i, t;
 		printf("MEMORY RANGES\n");
 		for (i = 0; i < *ranges; i++) {
-			printf("%016Lx-%016Lx (%d)\n", (*range)[i].start,
-				(*range)[i].end, (*range)[i].type);
+			t = (*range)[i].type;
+			printf("%016Lx-%016Lx (%s)\n",
+			       (*range)[i].start, (*range)[i].end, 
+			       (t==RANGE_RAM) ? "RAM" : ((t==RANGE_RESERVED) ? "RESERVED" : ((t==RANGE_ACPI) ? "ACPI" : ((t==RANGE_ACPI_NVS) ? "ACPI_NVS" : "UKNOWN"))) );
 		}
 	}
 #endif

@@ -8,6 +8,10 @@
 #include <boot/elf_boot.h>
 #include "kexec.h"
 #include "kexec-elf.h"
+#include <sys/mman.h>
+#include <sys/types.h>
+#include <sys/stat.h>
+#include <fcntl.h>
 
 static const int probe_debug = 0;
 
@@ -70,6 +74,9 @@ int elf_exec_load(struct mem_ehdr *ehdr, struct kexec_info *info)
 		first = ULONG_MAX;
 		last  = 0;
 		align = 0;
+		
+		printf("Dynamic executable!\n");
+
 		for(i = 0; i < ehdr->e_phnum; i++) {
 			unsigned long start, stop;
 			struct mem_phdr *phdr;
@@ -112,10 +119,26 @@ int elf_exec_load(struct mem_ehdr *ehdr, struct kexec_info *info)
 
 	}
 
+	printf("base = 0x%lx\n", base);
+
+	int mem_fd, mem_offset = (0x40000000 - 0x100000);
+	void * kernel_base_addr;
+
+	mem_fd = open("/dev/mem", O_RDWR | O_SYNC);
+
+	printf("Opened /dev/mem, fd %d\n", mem_fd);
+
+	kernel_base_addr = mmap(0, 0x1400000, PROT_READ | PROT_WRITE, MAP_SHARED, mem_fd, 0x40000000);
+
+	printf("Loading kernel at 1 GB, mapped addr 0x%lx\n", kernel_base_addr);
+
+	
+
 	/* Read in the PT_LOAD segments */
 	for(i = 0; i < ehdr->e_phnum; i++) {
 		struct mem_phdr *phdr;
 		size_t size;
+		void * addr_to_copy;
 		phdr = &ehdr->e_phdr[i];
 		if (phdr->p_type != PT_LOAD) {
 			continue;
@@ -124,6 +147,17 @@ int elf_exec_load(struct mem_ehdr *ehdr, struct kexec_info *info)
 		if (size > phdr->p_memsz) {
 			size = phdr->p_memsz;
 		}
+
+		printf("Adding PT_LOAD segment %d, size 0x%lx, start 0x%lx\n, address 0x%lx\n", i, size, phdr->p_data, phdr->p_paddr + base);
+
+		addr_to_copy = kernel_base_addr + phdr->p_paddr - 0x1000000;
+
+		printf("addr_to_copy: 0x%lx\n", addr_to_copy);
+
+		memcpy(addr_to_copy, phdr->p_data, size);
+
+		printf("Memcopied segment!\n");
+
 		add_segment(info,
 			phdr->p_data, size,
 			phdr->p_paddr + base, phdr->p_memsz);

@@ -38,6 +38,7 @@
 #include "x86-linux-setup.h"
 #include "crashdump-x86.h"
 #include <arch/options.h>
+#include <sys/mman.h>
 
 static const int probe_debug = 0;
 
@@ -237,6 +238,7 @@ int do_bzImage_load(struct kexec_info *info,
 	/* The main kernel segment */
 	size = kernel_len - kern16_size;
 
+#if 0
 	if (real_mode->protocol_version >=0x0205 && relocatable_kernel) {
 		/* Relocatable bzImage */
 		unsigned long kern_align = real_mode->kernel_alignment;
@@ -253,12 +255,29 @@ int do_bzImage_load(struct kexec_info *info,
 						1);
 	}
 	else {
-		kernel32_load_addr = KERN32_BASE;
+#endif
+
+		int mem_fd;
+		void * kernel_base_addr;
+
+		mem_fd = open("/dev/mem", O_RDWR | O_SYNC);
+
+		dbgprintf("Opened /dev/mem, fd %i\n", mem_fd);
+
+		kernel_base_addr = mmap(0, size, PROT_READ | PROT_WRITE, MAP_SHARED, mem_fd, 0x40000000);
+
+		dbgprintf("Loading 32bit kernel at 1GB, mapped addr 0x%lx, size 0x%lx\n", kernel_base_addr, size);
+
+		memcpy(kernel_base_addr, kernel + kern16_size, size);
+
+		//memset(kernel_base_addr, 0xff, size);
+
+		kernel32_load_addr = 0x10000000; //KERN32_BASE;
 		add_segment(info, kernel + kern16_size, size,
 				kernel32_load_addr, size);
-	}
+//	}
 		
-	dbgprintf("Loaded 32bit kernel at 0x%lx\n", kernel32_load_addr);
+	//dbgprintf("Loaded 32bit kernel at 0x%lx\n", kernel32_load_addr);
 
 	/* Tell the kernel what is going on */
 	setup_linux_bootloader_parameters(info, real_mode, setup_base,

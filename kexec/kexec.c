@@ -368,6 +368,8 @@ unsigned long add_buffer_phys_virt(struct kexec_info *info,
 	if (base == ULONG_MAX) {
 		die("locate_hole failed\n");
 	}
+
+	dbgprintf("Located hole, base = 0x%lx\n", base);
 	
 	add_segment_phys_virt(info, buf, bufsz, base, memsz, phys);
 	return base;
@@ -829,6 +831,13 @@ static int my_exec(void)
 	return -1;
 }
 
+static int my_boot(int cpuid)
+{
+	kexec_boot(cpuid);
+	fprintf(stderr, "kexec boot done\n");
+	return 0;
+}
+
 static int kexec_loaded(void);
 
 static int load_jump_back_helper_image(unsigned long kexec_flags, void *entry)
@@ -1050,6 +1059,8 @@ int main(int argc, char *argv[])
 {
 	int do_load = 1;
 	int do_exec = 0;
+	int do_boot = 0;
+	int cpuid = 0;
 	int do_load_jump_back_helper = 0;
 	int do_shutdown = 1;
 	int do_sync = 1;
@@ -1144,6 +1155,21 @@ int main(int argc, char *argv[])
 			do_sync = 0;
 			kexec_flags = KEXEC_ON_CRASH;
 			break;
+		case OPT_BOOT:
+			printf("KEXEC: picked OPT_BOOT\n");
+			do_load = 0;
+			do_exec = 0;
+			do_shutdown = 0;
+			do_sync = 0;
+			do_boot = 1;
+			cpuid = strtoul(optarg, &endptr, 0);
+			printf("KEXEC: cpu id is 0x%d\n", cpuid);
+			if (*endptr) {
+				fprintf(stderr, "Bad option value in --boot=%s\n", optarg);
+				usage();
+				return 1;
+			}
+			break;
 		case OPT_MEM_MIN:
 			mem_min = strtoul(optarg, &endptr, 0);
 			if (*endptr) {
@@ -1192,6 +1218,7 @@ int main(int argc, char *argv[])
 	optind = 1;
 
 	result = arch_process_options(argc, argv);
+	printf("result = %d\n", result);
 
 	/* Check for bogus options */
 	if (!do_load) {
@@ -1233,6 +1260,10 @@ int main(int argc, char *argv[])
 	}
 	if ((result == 0) && do_load_jump_back_helper) {
 		result = my_load_jump_back_helper(kexec_flags, entry);
+	}
+	if ((result == 0) && do_boot) {
+		printf("KEXEC: do_boot on cpuid %d\n", cpuid);
+		result = my_boot(cpuid);
 	}
 
 	fflush(stdout);

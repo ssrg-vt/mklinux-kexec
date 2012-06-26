@@ -184,6 +184,7 @@ extern int file_types;
 #define OPT_FORCE		'f'
 #define OPT_NOIFDOWN		'x'
 #define OPT_EXEC		'e'
+#define OPT_BOOT                'b'
 #define OPT_LOAD		'l'
 #define OPT_UNLOAD		'u'
 #define OPT_TYPE		't'
@@ -207,13 +208,14 @@ extern int file_types;
 	{ "load-jump-back-helper", 0, 0, OPT_LOAD_JUMP_BACK_HELPER }, \
 	{ "entry",		1, 0, OPT_ENTRY }, \
 	{ "type",		1, 0, OPT_TYPE }, \
+	{ "boot",               1, 0, OPT_BOOT}, \
 	{ "load-panic",         0, 0, OPT_PANIC }, \
 	{ "mem-min",		1, 0, OPT_MEM_MIN }, \
 	{ "mem-max",		1, 0, OPT_MEM_MAX }, \
 	{ "reuseinitrd",	0, 0, OPT_REUSE_INITRD }, \
 	{ "debug",		0, 0, OPT_DEBUG }, \
 
-#define KEXEC_OPT_STR "hvdfxluet:p"
+#define KEXEC_OPT_STR "hvdfxluetb:p"
 
 extern void die(char *fmt, ...);
 extern void *xmalloc(size_t size);

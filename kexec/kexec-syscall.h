@@ -75,6 +75,12 @@ static inline long kexec_reboot(void)
 	return (long) syscall(__NR_reboot, LINUX_REBOOT_MAGIC1, LINUX_REBOOT_MAGIC2, LINUX_REBOOT_CMD_KEXEC, 0);
 }
 
+#define LINUX_REBOOT_CMD_MKBSP 0xDEAD5E55
+static inline long kexec_boot(int cpu)
+{
+	return (long) syscall(__NR_reboot, LINUX_REBOOT_MAGIC1, LINUX_REBOOT_MAGIC2, LINUX_REBOOT_CMD_MKBSP, cpu);
+}
+
 
 #define KEXEC_ON_CRASH		0x00000001
 #define KEXEC_PRESERVE_CONTEXT	0x00000002

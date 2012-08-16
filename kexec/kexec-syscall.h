@@ -75,10 +75,12 @@ static inline long kexec_reboot(void)
 	return (long) syscall(__NR_reboot, LINUX_REBOOT_MAGIC1, LINUX_REBOOT_MAGIC2, LINUX_REBOOT_CMD_KEXEC, 0);
 }
 
+/* MKLINUX */
+#define __NR_multikernel_boot 312
 #define LINUX_REBOOT_CMD_MKBSP 0xDEAD5E55
-static inline long kexec_boot(int cpu)
+static inline long kexec_boot(int cpu, unsigned long kernel_start_address)
 {
-	return (long) syscall(__NR_reboot, LINUX_REBOOT_MAGIC1, LINUX_REBOOT_MAGIC2, LINUX_REBOOT_CMD_MKBSP, cpu);
+	return (long) syscall(__NR_multikernel_boot, cpu, kernel_start_address);
 }
 
 

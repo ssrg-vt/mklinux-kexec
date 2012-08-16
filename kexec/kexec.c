@@ -833,7 +833,7 @@ static int my_exec(void)
 
 static int my_boot(int cpuid)
 {
-	kexec_boot(cpuid);
+	kexec_boot(cpuid, 0x40000000);
 	fprintf(stderr, "kexec boot done\n");
 	return 0;
 }

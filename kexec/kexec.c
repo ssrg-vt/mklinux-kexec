@@ -831,9 +831,10 @@ static int my_exec(void)
 	return -1;
 }
 
-static int my_boot(int cpuid)
+static int my_boot(int cpuid, unsigned long boot_addr)
 {
-	kexec_boot(cpuid, 0x40000000);
+	printf("KEXEC: called my_boot, cpu %d, boot_addr 0x%lx\n", cpuid, boot_addr);
+	kexec_boot(cpuid, boot_addr);
 	fprintf(stderr, "kexec boot done\n");
 	return 0;
 }
@@ -1061,6 +1062,7 @@ int main(int argc, char *argv[])
 	int do_exec = 0;
 	int do_boot = 0;
 	int cpuid = 0;
+	unsigned long boot_addr = 0x0;
 	int do_load_jump_back_helper = 0;
 	int do_shutdown = 1;
 	int do_sync = 1;
@@ -1154,6 +1156,16 @@ int main(int argc, char *argv[])
 			do_shutdown = 0;
 			do_sync = 0;
 			kexec_flags = KEXEC_ON_CRASH;
+			break;
+		case OPT_BOOT_ADDR:
+			printf("KEXEC: picked OPT_BOOT_ADDR\n");
+			boot_addr = strtoul(optarg, &endptr, 0);
+			printf("KEXEC: boot address is 0x%lx\n", boot_addr);
+			if (*endptr) {
+				fprintf(stderr, "Bad option value in --address=%s\n", optarg);
+				usage();
+				return 1;
+			}
 			break;
 		case OPT_BOOT:
 			printf("KEXEC: picked OPT_BOOT\n");
@@ -1263,7 +1275,7 @@ int main(int argc, char *argv[])
 	}
 	if ((result == 0) && do_boot) {
 		printf("KEXEC: do_boot on cpuid %d\n", cpuid);
-		result = my_boot(cpuid);
+		result = my_boot(cpuid, boot_addr);
 	}
 
 	fflush(stdout);

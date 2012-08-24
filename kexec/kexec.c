@@ -51,6 +51,7 @@ unsigned long long mem_min = 0;
 unsigned long long mem_max = ULONG_MAX;
 static unsigned long kexec_flags = 0;
 int kexec_debug = 0;
+unsigned long mklinux_load_addr = 0x0;
 
 void die(char *fmt, ...)
 {
@@ -899,6 +900,10 @@ void usage(void)
 	       "                       specified)\n"
 	       " -l, --load           Load the new kernel into the\n"
 	       "                      current kernel.\n"
+	       " -a  --address=<addr> Load the new kernel to the specified physical\n"
+	       "                      address, or boot the new kernel at the specified\n"
+	       "                      physical address.\n"
+	       " -b, --boot=<cpu>     Boot the secondary kernel on the specified CPU\n"
 	       " -p, --load-panic     Load the new kernel for use on panic.\n"
 	       " -u, --unload         Unload the current kexec target kernel.\n"
 	       "                      If capture kernel is being unloaded\n"
@@ -1160,6 +1165,7 @@ int main(int argc, char *argv[])
 		case OPT_BOOT_ADDR:
 			printf("KEXEC: picked OPT_BOOT_ADDR\n");
 			boot_addr = strtoul(optarg, &endptr, 0);
+			mklinux_load_addr = boot_addr;
 			printf("KEXEC: boot address is 0x%lx\n", boot_addr);
 			if (*endptr) {
 				fprintf(stderr, "Bad option value in --address=%s\n", optarg);

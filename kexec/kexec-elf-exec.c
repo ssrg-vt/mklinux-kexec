@@ -13,6 +13,8 @@
 #include <sys/stat.h>
 #include <fcntl.h>
 
+extern unsigned long mklinux_load_addr;
+
 static const int probe_debug = 0;
 
 int build_elf_exec_info(const char *buf, off_t len, struct mem_ehdr *ehdr,
@@ -121,16 +123,17 @@ int elf_exec_load(struct mem_ehdr *ehdr, struct kexec_info *info)
 
 	printf("base = 0x%lx\n", base);
 
-	int mem_fd, mem_offset = (0x40000000 - 0x100000);
+	int mem_fd, mem_offset = (mklinux_load_addr - 0x100000);
 	void * kernel_base_addr;
 
 	mem_fd = open("/dev/mem", O_RDWR | O_SYNC);
 
 	printf("Opened /dev/mem, fd %d\n", mem_fd);
 
-	kernel_base_addr = mmap(0, 0x1400000, PROT_READ | PROT_WRITE, MAP_SHARED, mem_fd, 0x40000000);
+	kernel_base_addr = mmap(0, 0x1400000, PROT_READ | PROT_WRITE, MAP_SHARED, mem_fd, mklinux_load_addr);
 
-	printf("Loading kernel at 1 GB, mapped addr 0x%lx\n", kernel_base_addr);
+	printf("Loading kernel at phys addr 0x%lx, mapped addr 0x%lx\n", 
+			mklinux_load_addr, kernel_base_addr);
 
 	
 
